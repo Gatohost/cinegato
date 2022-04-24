@@ -1,0 +1,48 @@
+# === Gato Cutscene Handler ===
+#   _____                          
+#  / ____|                         
+# | (___   ___ _ ____   _____ _ __ 
+#  \___ \ / _ \ '__\ \ / / _ \ '__|
+#  ____) |  __/ |   \ V /  __/ |   
+# |_____/ \___|_|    \_/ \___|_| 
+#
+# Script by creepycats
+# Method inspired by some random GMS2 Tutorial
+# DO NOT REDISTRIBUTE WITHOUT PROPER CREDIT | Feel Free to Create your Own Events and Send them to Me to Add
+# =============================
+
+# === Server-side Event Helper ===
+public action onNetworkMessage(str id, obj data, str playerID) {
+	obj player = GAME.PLAYERS.findByID(playerID);
+	if(id == "cts_start"){
+		# Disable movement mechanics and velocity so player cannot move in cutscene
+		player.defaultMovement = false;
+		player.defaultVelocity = false;
+		player.disableShooting = true;
+		player.disableMelee = true;
+		player.velocity.x = 0;
+		player.velocity.y = 0;
+		player.velocity.z = 0;
+	}
+	if(id == "cts_end"){
+		# Re-enable movement mechanics and velocity so player can move after cutscene
+		player.defaultMovement = true;
+		player.defaultVelocity = true;
+		player.disableShooting = false;
+		player.disableMelee = false;
+	}
+	if(id == "cts_tp"){
+		player.position.x = (num)data.pos.x;
+		player.position.y = (num)data.pos.y;
+		player.position.z = (num)data.pos.z;
+	}
+}
+# ================================
+
+# === Trigger Event with Custom Trigger Action ===
+public action onCustomTrigger(str playerID, str customParam, num value) {
+    if(customParam == "cts_1"){
+		GAME.NETWORK.send("cts_1", {}, playerID);
+	}
+}
+# ================================================
