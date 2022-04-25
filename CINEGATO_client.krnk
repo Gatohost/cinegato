@@ -11,11 +11,21 @@
 # DO NOT REDISTRIBUTE WITHOUT PROPER CREDIT | Feel Free to Create your Own Events and Send them to Me to Add
 # =============================
 
+# === Version Info ===
+# Version 1.1
+# - Added Dialogue Features
+# ====================
+
 # === Cutscene Initialization ===
 obj cutscenes = {
 	started: false,
 	currentIndex: 0,
 	eventTimer: 0
+};
+obj dialogue = {
+	currentChar: 0,
+	nextCharTimer: 0,
+	lines: obj[]
 };
 obj[] cutsceneEvents = obj[]; # This is the list we will reference for cutscene events and their variables
 # ===============================
@@ -38,10 +48,10 @@ action cts_playEvents(bool _canSkip) {
 	GAME.UI.addDIV("cts_blocker", "visible", "position:absolute;top:0%;left:0%;width:999999px;height:999999px;background-color:rgba(0,0,0,0);");
 	if(_canSkip){
 		GAME.UI.addDIV('cts_skipbutton', true,
-			'color:#f1f1f1;position:absolute;bottom:10%;left:50%;' +
-			'transform: translate(-50%,-50%);font-size: 24px;' +
+			'color:#f1f1f1;position:absolute;bottom:3%;left:25%;' +
+			'font-size: 24px;' +
 			'border:solid 2px #fff;border-radius:4px;' +
-			'padding:10px 30px 10px 30px;background-color: rgba(0,0,0,0.2);'
+			'padding:10px 30px 10px 30px;background-color: rgba(0,0,0,0.4);'
 		);
 	}
 	GAME.UI.updateDIVText('cts_skipbutton', 'Skip Cutscene');
@@ -84,6 +94,17 @@ action cts_endEvents() {
 	GAME.UI.removeDIV("cts_skipbutton");
 	GAME.INPUTS.lockMouse();
 	GAME.CAMERA.rotation.z = 0;
+	
+	dialogue = {
+		currentChar: 0,
+		nextCharTimer: 0,
+		lines: obj[]
+	};
+	if(!!GAME.UI.getDIVText("cts_dialogueBox")){
+		GAME.UI.removeDIV("cts_dialogueBox");
+		GAME.UI.removeDIV("cts_speakerBox");
+		GAME.UI.removeDIV("cts_nextButton");
+	}
 }
 
 action cts_newCutscene() {
@@ -171,6 +192,29 @@ action cts_fade_out(num _duration){
 		duration: _duration
 	};
 }
+
+action cts_dialogue_createBox(){
+	addTo cutsceneEvents {
+		event: "dialogue_createBox",
+		duration: 0.00001
+	};
+}
+action cts_dialogue_add(str _dialogue, str _speaker, num _speed, bool _autoClose){
+	addTo cutsceneEvents {
+		event: "dialogue_add",
+		duration: 0.00001,
+		text: _dialogue,
+		speed: _speed,
+		speaker: _speaker,
+		autoClose: _autoClose
+	};
+}
+action cts_dialogue_waitForFinish(){
+	addTo cutsceneEvents {
+		event: "dialogue_waitForFinish",
+		duration: 1
+	};
+}
 # ========================
 
 # === Easing Function ===
@@ -178,6 +222,23 @@ num action BezierBlend(num t){
     return t * t * (3.0 - 2.0 * t);
 }	# Feel free to replace with your own easing function
 # ========================
+
+# === Imports ===
+str action splice(str input, num start, num end) {	# Thx ManiaMapper
+    num charsLen = lengthOf input;
+    if(charsLen == 0 || start >= charsLen || start >= end) {
+        return '';
+    }
+    if(end > charsLen) {
+        end = charsLen;
+    }
+    str output = '';
+    for(num i = start; i < end; i++) {
+        output += input[i];
+    }
+    return output;
+}
+# ===============
 
 public action update(num delta) {
 	# === Fix Camera Rotation ===
@@ -241,13 +302,53 @@ public action update(num delta) {
 		else if((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "fade_out"){
 			GAME.UI.updateDIV("cts_blocker", "background-color", "rgba(0,0,0," + toStr (1 - (num)cutscenes.eventTimer / (num)cutsceneEvents[(num)cutscenes.currentIndex].duration) + ")");
 		}
+		else if((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "dialogue_createBox"){
+			# Create Text Box
+			GAME.UI.addDIV('cts_dialogueBox', true,
+				'color:#f1f1f1;position:absolute;bottom:10%;left:50%;' +
+				'transform: translate(-50%,0%);font-size: 24px;' +
+				'border:solid 2px #fff;border-radius:4px;' +
+				'padding:10px 30px 10px 30px;background-color: rgba(0,0,0,0.4);' +
+				'width:50%;height:20%;text-align:left;'
+			);
+			GAME.UI.addDIV('cts_speakerBox', true,
+			'color:#f1f1f1;position:absolute;bottom:34%;left:25%;' +
+			'font-size: 24px;' +
+			'border:solid 2px #fff;border-radius:4px;' +
+			'padding:10px 30px 10px 30px;background-color: rgba(0,0,0,0.4);'
+			);
+			GAME.UI.addDIV('cts_nextButton', true,
+				'color:#f1f1f1;position:absolute;bottom:3%;left:75%;' +
+				'font-size: 24px;transform:translate(-100%, 0%);' +
+				'border:solid 2px #fff;border-radius:4px;' +
+				'padding:10px 30px 10px 30px;background-color: rgba(0,0,0,0.4);'
+			);
+			GAME.UI.updateDIVText("cts_nextButton", "Next");
+			# Set Initial Stuff
+			dialogue = {
+				currentChar: 0,
+				nextCharTimer: 0,
+				lines: obj[]
+			};
+		}
+		else if((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "dialogue_add"){
+			addTo (obj[])dialogue.lines {
+				text: cutsceneEvents[(num)cutscenes.currentIndex].text,
+				speed: cutsceneEvents[(num)cutscenes.currentIndex].speed,
+				speaker: cutsceneEvents[(num)cutscenes.currentIndex].speaker,
+				autoClose: cutsceneEvents[(num)cutscenes.currentIndex].autoClose
+			};
+		}
+		else if((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "dialogue_waitForFinish"){
+			# Do nothing since its not controlling anything outside of the duration
+		}
 		else {	# Invalid Event
 			GAME.log("ERROR: Unknown Event in cutsceneEvents array");
 			cts_endEvents();
 		}
 
 		(num)cutscenes.eventTimer -= delta; # Lower the time left for the event
-		if((num)cutscenes.eventTimer <= 0) {	# If current event timer ends
+		if((num)cutscenes.eventTimer <= 0 && !((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "dialogue_waitForFinish" && lengthOf dialogue.lines != 0)) {	# If current event timer ends
 			if((str)cutsceneEvents[(num)cutscenes.currentIndex].event == "fade_in"){
 				GAME.UI.updateDIV("cts_blocker", "background-color", "rgba(0,0,0,0)");
 			}
@@ -280,12 +381,63 @@ public action update(num delta) {
 		}
 	}
 	# =================================
+	
+	# === Dialogue Update Functions ===
+	if(lengthOf dialogue.lines != 0){
+		GAME.UI.updateDIVText("cts_dialogueBox", splice((str)dialogue.lines[0].text, 0, (num)dialogue.currentChar));
+		if((num)dialogue.currentChar == 0){
+			if((str)dialogue.lines[0].speaker == ""){
+				GAME.UI.updateDIV("cts_speakerBox", "visibility", "hidden");
+			} else {
+				GAME.UI.updateDIVText("cts_speakerBox", (str)dialogue.lines[0].speaker);
+				GAME.UI.updateDIV("cts_speakerBox", "visibility", "visible");
+			}
+			if((bool)dialogue.lines[0].autoClose){
+				GAME.UI.updateDIV("cts_nextButton", "visibility", "hidden");
+			} else {
+				GAME.UI.updateDIV("cts_nextButton", "visibility", "visible");
+			}
+		}
+
+		(num)dialogue.nextCharTimer -= delta; # Lower the time left for current character
+		if((num)dialogue.nextCharTimer <= 0 && !((num)dialogue.currentChar == lengthOf (str)dialogue.lines[0].text && !dialogue.lines[0].autoClose)){
+			dialogue.nextCharTimer = (num)dialogue.lines[0].speed;
+			(num)dialogue.currentChar++;
+			
+			if((num)dialogue.currentChar == lengthOf (str)dialogue.lines[0].text){
+				dialogue.nextCharTimer = 3000;
+			}
+			if((num)dialogue.currentChar > lengthOf (str)dialogue.lines[0].text){
+				remove dialogue.lines[0];
+				if (lengthOf dialogue.lines < 1) {
+					GAME.UI.removeDIV("cts_dialogueBox");
+					GAME.UI.removeDIV("cts_speakerBox");
+					GAME.UI.removeDIV("cts_nextButton");
+				} else {
+					dialogue.nextCharTimer = (num)dialogue.lines[0].speed;
+					dialogue.currentChar = 0;
+				}
+			}
+		}
+	}
+	# =================================
 }
 
 # === Skip Button ===
 public action onDIVClicked(str id) {
     if (id == "cts_skipbutton") {
         cts_endEvents();
+    };
+	if (id == "cts_nextButton") {
+		remove dialogue.lines[0];
+		if (lengthOf dialogue.lines < 1) {
+			GAME.UI.removeDIV("cts_dialogueBox");
+			GAME.UI.removeDIV("cts_speakerBox");
+			GAME.UI.removeDIV("cts_nextButton");
+		} else {
+			dialogue.nextCharTimer = (num)dialogue.lines[0].speed;
+			dialogue.currentChar = 0;
+		}
     };
 }
 # ===================
@@ -307,6 +459,11 @@ public action onDIVClicked(str id) {
 #	cts_fade_in(duration (ms) ) - Fades the camera back in over the duration given
 #	cts_fade_out(duration (ms) ) - Fades the camera out over the duration given
 #
+#	- Dialogue -
+#	cts_dialogue_createBox() - Creates the Dialogue Box (MUST BE RUN BEFORE STARTING A NEW BOX OR ADDING TEXT)
+#	cts_dialogue_add(dialogue, speaker, speed (ms) , autoClose (bool) ) - Adds one page of text to the box. To hide speaker, leave it as a blank string
+#	cts_dialogue_waitForFinish() - Stalls the cutscene until there is no more text box on screen
+#
 # 	- Triggers -
 # 	Since triggers cannot be easily controlled with scripts, please activate the cutscene with a trigger and add those trigger functions to make up for it
 # ======================
@@ -318,15 +475,21 @@ public action onNetworkMessage(str id, obj data) {
 		cts_newCutscene();	# REQUIRED TO REGISTER A NEW CUTSCENE
 		cts_hide_arms();	# Hides the player model's arms so that moving the camera does not mess up the view model
 		
-		cts_camera_glideTo(false, 0, 20, 0, 0, 0, 0, 1000); # Glides the camera to 10 units above the world's origin
-		cts_time_wait(2000);						 		# Waits 2 seconds
-		cts_fade_out(500);									# Fade out
-		cts_camera_glideTo(true, 0, 0, 0, 0, 0, 0, 100);	# Go back to player
-		cts_fade_in(500);									# Fade back in
-		cts_camera_glideTo(true, 0, 30, 0, 0, 0, 0, 1000);  # Glides the camera to 10 units above the player's position
-		cts_time_wait(2000);						 		# Waits 2 seconds
-		cts_show_arms();									# Shows the player's arms again
-		cts_camera_glideTo(true, 0, 0, 0, 0, 0, 0, 1000);   # Glides the camera back to the player's original camera position
+		cts_dialogue_createBox();
+		cts_dialogue_add("This is a text box!", "Speaker Name", 20, true);
+		cts_dialogue_add("This is also a text box. Nothing special about it, but theres no speaker", "", 20, true);
+		cts_camera_glideTo(false, 0, 20, 0, 0, 0, 0, 1000); 
+		cts_dialogue_waitForFinish();
+		cts_fade_out(500);									
+		cts_camera_glideTo(true, 0, 0, 0, 0, 0, 0, 100);
+		cts_fade_in(500);									
+		cts_camera_glideTo(true, 0, 30, 0, 0, 0, 0, 1000);
+		cts_dialogue_createBox();
+		cts_dialogue_add("This is a text box that is pretty long and will require you press the button. Funny right? I know it is dude just laugh cmon pls", "Sidney DeVries", 20, false);
+		cts_dialogue_add("Cool, right?", "", 20, true);
+		cts_dialogue_waitForFinish();
+		cts_show_arms();									
+		cts_camera_glideTo(true, 0, 0, 0, 0, 0, 0, 1000);
 		
 		cts_playEvents(true); # Plays the cutscene, which CAN be skipped
 		#cts_playEvents(false); # Uncomment this line if you want to force the player to watch the cutscene
