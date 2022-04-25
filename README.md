@@ -25,6 +25,13 @@ cts_player_bringToCamera() | Brings the player to the camera's location
 cts_fade_in(duration) | Fades the camera back in over the duration given
 cts_fade_out(duration () | Fades the camera out over the duration given
 
+## Dialogue
+Action| Description
+-------- | -----
+cts_dialogue_createBox() | Creates the Dialogue Box (MUST BE RUN BEFORE STARTING A NEW BOX OR ADDING TEXT)
+cts_dialogue_add(dialogue, speaker, speed, autoClose) | Adds one page of text to the box. To hide speaker, leave it as a blank string
+cts_dialogue_waitForFinish() | Stalls the cutscene until there is no more text box on screen
+
 ## Contributing
 Feel free to create your own functions and submit them and I will add them.
 
